@@ -23,6 +23,10 @@
 #include "sr_arpcache.h"
 #include "sr_utils.h"
 
+//Importado por mi
+#include "sr_rt.h"
+
+
 /*---------------------------------------------------------------------
  * Method: sr_init(void)
  * Scope:  Global
@@ -31,6 +35,7 @@
  *
  *---------------------------------------------------------------------*/
 
+//Implementada por ellos
 void sr_init(struct sr_instance* sr)
 {
     /* REQUIRES */
@@ -63,7 +68,12 @@ void sr_send_icmp_error_packet(uint8_t type,
                               uint32_t ipDst,
                               uint8_t *ipPacket)
 {
-
+	int icmpPacketLen = sizeof(sr_icmp_hdr);
+	unit8_t *icmpPacket = malloc(icmpPacketLen);
+	sr_icmp_hdr *icmp_hdr = (struct sr_icmp_hdr *) icmpPacket;
+	memcpy(icmp_hdr->icmp_type, type);
+	memcpy(icmp_hdr->icmp_code, code);
+	memcpy(icmp_hdr->icmp_sum, icmp_cksum(icmp_hdr, sizeof(icmp_hdr)));
 }
 
 void sr_handle_arp_packet(struct sr_instance *sr,
@@ -95,12 +105,21 @@ void sr_handle_ip_packet(struct sr_instance *sr,
         char *interface /* lent */,
         sr_ethernet_hdr_t *eHdr) {
 
-
 	/* Get IP header and addresses */
+		sr_ip_hdr_t *ip_hdr = (sr_ip_hdr_t *)packet;
+		uint32_t ip_src = ip_hdr->ip_src;
+		uint32_t ip_dst = ip_hdr->ip_dst;
+		uint8_t ip_ttl = ip_hdr->ip_ttl;
+
 
 	/* Check if packet is for me or the destination is in my routing table*/
+		sr_rt* routing_table = sr->routing_table;
 
 	/* If non of the above is true, send ICMP net unreachable */
+		// red inalcanzable tipo 3, codigo 0
+		if ()
+			sr_send_icmp_error_packet(3, 0, sr, ip_src, ip_dst);
+
 
 	/* Else if for me, check if ICMP and act accordingly*/
 
@@ -124,6 +143,7 @@ void sr_handle_ip_packet(struct sr_instance *sr,
  *
  *---------------------------------------------------------------------*/
 
+//Implementada por ellos
 void sr_handlepacket(struct sr_instance* sr,
         uint8_t * packet/* lent */,
         unsigned int len,
