@@ -17,87 +17,7 @@
 #include <string.h>
 
 #include "sr_if.h"
-#include "sr_rt.h"/** 
- * This header file defines data structures for logging packets in tcpdump
- * format as well as a set of operations for logging.
- */
-
-
-#ifdef _LINUX_
-#include <stdint.h>
-#endif /* _LINUX_ */
-
-#ifdef _DARWIN_
-#include <inttypes.h>
-#endif /* _DARWIN_ */
-
-#include <sys/time.h>
-#include <stdint.h>
-
-#define PCAP_VERSION_MAJOR 2
-#define PCAP_VERSION_MINOR 4
-#define PCAP_ETHA_LEN 6
-#define PCAP_PROTO_LEN 2
-
-#define TCPDUMP_MAGIC 0xa1b2c3d4
-
-#define LINKTYPE_ETHERNET 1
-
-#define min(a,b) ( (a) < (b) ? (a) : (b) )
-
-/* file header */
-struct pcap_file_header {
-  uint32_t   magic;         /* magic number */
-  uint16_t version_major; /* version number major */
-  uint16_t version_minor; /* version number minor */
-  int     thiszone;      /* gmt to local correction */
-  uint32_t   sigfigs;       /* accuracy of timestamps */
-  uint32_t   snaplen;       /* max length saved portion of each pkt */
-  uint32_t   linktype;      /* data link type (LINKTYPE_*) */
-};
-
-/* packet header */
-struct pcap_pkthdr {
-  struct timeval ts;     /* time stamp  */
-  uint32_t caplen;          /* length of portion present */
-  uint32_t len;             /* length this packet (off wire) */
-};
-
-/*
- * This is a timeval as stored in disk in a dumpfile.
- * It has to use the same types everywhere, independent of the actual
- * `struct timeval'
- */
-struct pcap_timeval {
-    int tv_sec;           /* seconds */
-    int tv_usec;          /* microseconds */
-};
-
-
-/*
- * How a `pcap_pkthdr' is actually stored in the dumpfile.
- */
-struct pcap_sf_pkthdr {
-    struct pcap_timeval ts;     /* time stamp */
-    uint32_t caplen;         /* length of portion present */
-    uint32_t len;            /* length this packet (off wire) */
-};
-
-/**
- * Open a dump file and initialize the file.
- */
-FILE* sr_dump_open(const char *fname, int thiszone, int snaplen);
-
-/**
- * Write data into the log file
- */
-void sr_dump(FILE *fp, const struct pcap_pkthdr *h, const unsigned char *sp);
-
-/**
- * Close the file
- */
-void sr_dump_close(FILE *fp);
-
+#include "sr_rt.h"
 #include "sr_router.h"
 #include "sr_protocol.h"
 #include "sr_arpcache.h"
@@ -128,7 +48,7 @@ struct sr_rt *porDondeSalir(uint32_t ipDst, struct sr_instance *sr){
     }
     if (lpm = 0 && default_gw != NULL)
       gw = default_gw;
-    
+
     return gw;
 }
 /*---------------------------------------------------------------------
@@ -170,7 +90,7 @@ void sr_send_icmp_error_packet(uint8_t type,
                               uint32_t ipDst,
                               uint8_t *ipPacket)
 {
-	//falta averiguar a que mac mando 
+	//falta averiguar a que mac mando
   /*int icmpPacketLen = sizeof(sr_arp_hdr_t) + sizeof(sr_ip_hdr_t) + sizeof(sr_icmp_hdr_t);
 	uint8_t *icmpPacket = malloc(icmpPacketLen);
 	sr_icmp_hdr_t *icmp_hdr = (struct sr_icmp_hdr *) icmpPacket;
@@ -195,6 +115,7 @@ void sr_handle_arp_packet(struct sr_instance *sr,
   /* Get ARP header and addresses */
 
   /* add or update sender to ARP cache*/
+
   /* check if the ARP packet is for one of my interfaces. */
 
   /* check if it is a request or reply*/
@@ -202,7 +123,7 @@ void sr_handle_arp_packet(struct sr_instance *sr,
   /* if it is a request, construct and send an ARP reply*/
 
   /* else if it is a reply, add to ARP cache if necessary and send packets waiting for that reply*/
-  
+
 }
 
 /*
@@ -222,7 +143,7 @@ void sr_handle_ip_packet(struct sr_instance *sr,
                         uint8_t *srcAddr,
                         uint8_t *destAddr,
                         char *interface /* lent */,
-                        sr_ethernet_hdr_t *eHdr) 
+                        sr_ethernet_hdr_t *eHdr)
     {
 	/* Get IP header and addresses */
 		sr_ip_hdr_t *ip_packet = (sr_ip_hdr_t *) (packet + sizeof(sr_ethernet_hdr_t));
@@ -241,10 +162,11 @@ void sr_handle_ip_packet(struct sr_instance *sr,
 				forMe = true;
 				break;
 			}
-			else 
+			else
 				it = it->next;
 		}
     //Me fijo si lo tengo en mi routing table
+    in_addr_t gw = NULL, default_gw, lpm = 0;
     bool inRT = false;
     if (!forMe)
       {
@@ -267,7 +189,7 @@ void sr_handle_ip_packet(struct sr_instance *sr,
         //mne fijo si es un echo request
         if(ip_protocol(ip_packet) == ip_protocol_icmp)
           if(icmp_packet->icmp_type == 0x0008 && icmp_packet->icmp_type == 0x0000)
-            //envio echo reply
+            //envio echo reply type 0
             sr_send_icmp_error_packet(0x0000, 0x0000, sr, ip_src, ip_dst);
 
       }
@@ -275,7 +197,7 @@ void sr_handle_ip_packet(struct sr_instance *sr,
 	/* Else, check TTL, ARP and forward if corresponds (may need an ARP request and wait for the reply) */
   if(inRT){
     if (ip_packet->ip_ttl - 1 == 0){
-      //ICMP time exeeded
+      //ICMP time exeeded type 11 code 0
       sr_send_icmp_error_packet(0x000B, 0x0000, sr, ip_src, ip_packet);
     }
     else {
@@ -330,4 +252,3 @@ void sr_handlepacket(struct sr_instance* sr,
   }
 
 }/* end sr_ForwardPacket */
-
