@@ -24,9 +24,29 @@
 #include "sr_utils.h"
 
 //Importado por mi
-#include "sr_rt.h"
+#include <stdbool.h>
 
 
+//Me devuelve un puntero con la fila de la routing table que me sirve para enviar el paquete, sino me sirve ninguna retorna NULL
+struct sr_rt *porDondeSalir(uint32_t ipDst, struct sr_instance *sr){
+    in_addr_t lpm = 0;
+    struct sr_rt *default_gw = NULL;
+    struct sr_rt *gw = NULL;
+
+    for(struct sr_rt *entry_table = sr->routing_table; entry_table != NULL; entry_table = entry_table->next){
+      if (entry_table->dest.s_addr == 0){
+        default_gw = entry_table;
+      }
+      if(entry_table->mask.s_addr & ipDst == entry_table->dest.s_addr)
+        if(entry_table->gw.s_addr > lpm){
+          gw = entry_table;
+        }
+    }
+    if (lpm = 0 && default_gw != NULL)
+      gw = default_gw;
+
+    return gw;
+}
 /*---------------------------------------------------------------------
  * Method: sr_init(void)
  * Scope:  Global
@@ -34,7 +54,6 @@
  * Initialize the routing subsystem
  *
  *---------------------------------------------------------------------*/
-
 //Implementada por ellos
 void sr_init(struct sr_instance* sr)
 {
@@ -58,7 +77,6 @@ void sr_init(struct sr_instance* sr)
 
 /* Send an ARP request. */
 void sr_arp_request_send(struct sr_instance *sr, uint32_t ip) {
-
 }
 
 /* Send an ICMP error. */
@@ -68,13 +86,19 @@ void sr_send_icmp_error_packet(uint8_t type,
                               uint32_t ipDst,
                               uint8_t *ipPacket)
 {
-	int icmpPacketLen = sizeof(sr_icmp_hdr);
-	unit8_t *icmpPacket = malloc(icmpPacketLen);
-	sr_icmp_hdr *icmp_hdr = (struct sr_icmp_hdr *) icmpPacket;
-	memcpy(icmp_hdr->icmp_type, type);
-	memcpy(icmp_hdr->icmp_code, code);
-	memcpy(icmp_hdr->icmp_sum, icmp_cksum(icmp_hdr, sizeof(icmp_hdr)));
-}
+	//falta averiguar a que mac mando
+  /*int icmpPacketLen = sizeof(sr_arp_hdr_t) + sizeof(sr_ip_hdr_t) + sizeof(sr_icmp_hdr_t);
+	uint8_t *icmpPacket = malloc(icmpPacketLen);
+	sr_icmp_hdr_t *icmp_hdr = (struct sr_icmp_hdr *) icmpPacket;
+	memcpy(icmp_hdr->icmp_type, type, sizeof(type));
+	memcpy(icmp_hdr->icmp_code, code, sizeof(code));
+  uint32_t cksum = icmp_cksum(icmp_hdr, sizeof(icmp_hdr));
+	memcpy(icmp_hdr->icmp_sum, cksum, sizeof(cksum));
+  struct salida_t *salida;
+  salida = porDondeSalir(ipDst, sr);
+  sr_send_packet(sr, icmp_hdr, icmpPacketLen, salida->interface);
+  */
+  }
 
 void sr_handle_arp_packet(struct sr_instance *sr,
         uint8_t *packet /* lent */,
@@ -87,7 +111,8 @@ void sr_handle_arp_packet(struct sr_instance *sr,
   /* Get ARP header and addresses */
 
   /* add or update sender to ARP cache*/
-
+  struct sr_arpreq *req;
+  int updated = sr_arpcache_update();
   /* check if the ARP packet is for one of my interfaces. */
 
   /* check if it is a request or reply*/
@@ -95,7 +120,19 @@ void sr_handle_arp_packet(struct sr_instance *sr,
   /* if it is a request, construct and send an ARP reply*/
 
   /* else if it is a reply, add to ARP cache if necessary and send packets waiting for that reply*/
+
 }
+
+/*
+ int sr_send_packet (struct sr_instance * sr, uint8_t * buf, unsigned int
+len, const char * iface)
+Este método, ubicado en sr_vns_comm.c, enviará un paquete arbitrario de longitud, len, a la red
+fuera de la interfaz especificada por iface.
+No debe liberar el búfer que se le dio en sr_handlepacket (es por eso que el búfer está
+etiquetado como "lent" en los comentarios). Usted es responsable de hacer una gestión correcta
+de la memoria en los buffers que sr_send_packet le presta (es decir, sr_send_packet no
+liberará la memoria de los buffers que le pase).
+*/
 
 void sr_handle_ip_packet(struct sr_instance *sr,
         uint8_t *packet /* lent */,
@@ -106,24 +143,60 @@ void sr_handle_ip_packet(struct sr_instance *sr,
         sr_ethernet_hdr_t *eHdr) {
 
 	/* Get IP header and addresses */
-		sr_ip_hdr_t *ip_hdr = (sr_ip_hdr_t *)packet;
-		uint32_t ip_src = ip_hdr->ip_src;
-		uint32_t ip_dst = ip_hdr->ip_dst;
-		uint8_t ip_ttl = ip_hdr->ip_ttl;
+		sr_ip_hdr_t *ip_packet = (sr_ip_hdr_t *) (packet + sizeof(sr_ethernet_hdr_t));
+		uint32_t ip_src = ip_packet->ip_src;
+		uint32_t ip_dst = ip_packet->ip_dst;
+		uint8_t ip_ttl = ip_packet->ip_ttl;
 
 
 	/* Check if packet is for me or the destination is in my routing table*/
-		sr_rt* routing_table = sr->routing_table;
+		//Me fijo si tengo alguna interface con la ip destino del paquete ip
+		bool forMe = false;
+
+		struct sr_if *it = sr->if_list;
+		while(it != NULL){
+			if (it->ip == destAddr){
+				forMe = true;
+				break;
+			}
+			else
+				it = it->next;
+		}
+    //Me fijo si lo tengo en mi routing table
+    in_addr_t gw = NULL, default_gw, lpm = 0;
+    bool inRT = false;
+    if (!forMe)
+      {
+        struct salida_t *salida;
+        salida = porDondeSalir(ip_dst, sr);
+        if (salida == NULL)
+          inRT = false;
+      }
 
 	/* If non of the above is true, send ICMP net unreachable */
-		// red inalcanzable tipo 3, codigo 0
-		if ()
+		//si no es para mi y no esta en la tabla de ruteo
+    if(!forMe && !inRT)
+			// red inalcanzable tipo 3, codigo 0
 			sr_send_icmp_error_packet(3, 0, sr, ip_src, ip_dst);
 
-
 	/* Else if for me, check if ICMP and act accordingly*/
+      if (forMe){
+        //ya habia correido el puntero largo sr_ethernet_hdr_t arriba ahora lo corro sr_ip_hdr_t para obterer el paquete ICMP
+        sr_icmp_hdr_t *icmp_packet = (sr_icmp_hdr_t *) (ip_packet + sizeof(sr_ip_hdr_t));
+        //mne fijo si es un echo request
+        if(icmp_packet->icmp_type == 8 && icmp_packet->icmp_type == 0)
+          //envio echo reply
+    			sr_send_icmp_error_packet(0, 0, sr, ip_src, ip_dst);
+
+      }
 
 	/* Else, check TTL, ARP and forward if corresponds (may need an ARP request and wait for the reply) */
+  if(inRT){
+    if (ip_packet->ip_ttl - 1 == 0){
+      sr_send_icmp_error_packet(11, 0, sr, ip_src, ip_src);
+    }
+    else {}
+  }
 
 }
 
@@ -173,4 +246,5 @@ void sr_handlepacket(struct sr_instance* sr,
   }
 
 }/* end sr_ForwardPacket */
+
 
