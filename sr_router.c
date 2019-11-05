@@ -360,9 +360,15 @@ void sr_handle_arp_packet(struct sr_instance *sr,
       }
    }
 
-  /* Get ARP header and addresses */
+   	   	/* Get ARP header and addresses */
+   		/*sr_arp_hdr_t *arp_packet = (sr_arp_hdr_t *) (packet + sizeof(sr_ethernet_hdr_t));
+   		uint32_t ar_sip = arp_packet->ar_sip; // sender IP addr
+   		uint32_t ar_tip = arp_packet->ar_tip; // target IP addr*/
 
-  /* add or update sender to ARP cache*/
+   		/* add or update sender to ARP cache*/
+   		/*uint8_t *src_mac = eHdr->ether_shost;
+   		unsigned char *src_mac_char = (unsigned char *)src_mac;
+   		struct sr_arpreq *arpreq = sr_arpcache_insert(&(sr->cache), src_mac_char, ar_sip);*/
 
   /* check if the ARP packet is for one of my interfaces. */
 
