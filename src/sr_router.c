@@ -397,30 +397,38 @@ void sr_handle_ip_packet(struct sr_instance *sr,
         uint8_t *destAddr,
         char *interface /* lent */,
         sr_ethernet_hdr_t *eHdr) {
-      printf("\n---------------sr_handle_ip_packet-------------------\n");
 
       sr_ip_hdr_t *ip_hdr = (sr_ip_hdr_t *) (packet + sizeof(sr_ethernet_hdr_t));
+
+      /*printf("\n---------------sr_handle_ip_packet-------------------\n");
+
 
       if ((ip_hdr->ip_hl < 5) || (len - sizeof(sr_ethernet_hdr_t) < sizeof(sr_ip_hdr_t))){
        printf("\n---------Paquete IP invalido----------\n");
         return;
       }else{
         printf("\n---------Paquete IP Valido----------\n");
-      }
+      }*/
 
+		ip_hdr->ip_ttl--;
 
       uint16_t headerChecksum = ip_hdr->ip_sum;
       ip_hdr->ip_sum = 0;
       uint16_t calculatedChecksum = ip_cksum(ip_hdr, ip_hdr->ip_hl*4);
-      printf("\n\n\n\n---------%i----------\n\n\n\n", ip_hdr->ip_hl*4);
+      ip_hdr->ip_sum = calculatedChecksum;
+      printf("\n IP_HL: ---------%i----------\n", ip_hdr->ip_hl*4);
 
-      if (headerChecksum != calculatedChecksum)
+      if (is_packet_valid(packet, len)) {
+    	  printf("******* PAQUETE VALIDO *******");
+      }
+
+      /*if (headerChecksum != calculatedChecksum)
       {
          printf("\n---------Checksum Erroneo----------\n");
          return;
       }
       else
-        printf("\n---------Checksum Correcto----------\n");
+        printf("\n---------Checksum Correcto----------\n");*/
 
       bool toMe = false;
       if(sr_get_interface_given_ip(sr, ip_hdr->ip_dst) != NULL){
@@ -454,19 +462,18 @@ void sr_handle_ip_packet(struct sr_instance *sr,
 
 void PacketToMe(struct sr_instance* sr, sr_ip_hdr_t* packet, unsigned int length, struct sr_if  *interface)
         {
-			packet->ip_ttl--;
 
-          printf("---------------IpHandleReceivedPacketToUs-------------------");
-          if (packet->ip_p == ip_protocol_icmp)
-          {
-            printf("\n---------------Send Echo Reply-------------------\n");
-            sr_send_icmp_error_packet(0, 0, sr, packet->ip_src, packet);
-          }
-          else
-          {
-            printf("---------------Send Port Unreachable-------------------");
-            sr_send_icmp_error_packet(3, 3, sr, packet->ip_src, packet);
-          }
+		  printf("---------------IpHandleReceivedPacketToUs-------------------");
+		  if (packet->ip_p == ip_protocol_icmp)
+		  {
+			printf("\n---------------Send Echo Reply-------------------\n");
+			sr_send_icmp_error_packet(0, 0, sr, packet->ip_src, packet);
+		  }
+		  else
+		  {
+			printf("---------------Send Port Unreachable-------------------");
+			sr_send_icmp_error_packet(3, 3, sr, packet->ip_src, packet);
+		  }
 }
 
 
@@ -477,7 +484,7 @@ void forwardIpPacket(struct sr_instance* sr, sr_ip_hdr_t* packet,
         if (next_hop != NULL)
           printf("\n--------Existe Ruta a destino-------\n");
         /* Decremento TTL y forward */
-        uint8_t packetTtl = packet->ip_ttl - 1;
+        uint8_t packetTtl = packet->ip_ttl; /*- 1*/
         if (packetTtl == 0)
         {
             printf("\n---------------Time Exeeded-------------------\n");
