@@ -41,8 +41,14 @@ static void checkARPandSendPacket(struct sr_instance *sr, sr_ethernet_hdr_t* pac
    if (arpEntry != NULL)
    {
        printf("\n---------------arpEntry != NULL-------------------\n");
+       int i = 0;
+       while(i<=5){
+    	   printf("%d \n", (unsigned int)arpEntry->mac[i]);
+    	   i++;
+       }
 
       memcpy(packet->ether_dhost, arpEntry->mac, ETHER_ADDR_LEN);
+      print_hdrs(packet,sizeof(sr_ethernet_hdr_t) + sizeof(sr_ip_hdr_t));
       sr_send_packet(sr, (uint8_t*) packet, length, route->interface);
 
       free(arpEntry);
@@ -80,7 +86,7 @@ struct sr_rt* sr_LPM(struct sr_instance* sr,uint32_t tip){
 	struct sr_rt* it = sr->routing_table;
 	while(it){
 		mask = it->mask.s_addr;
-		if((it->dest.s_addr)==(mask&tip)){
+		if((it->dest.s_addr&mask)==(mask&tip)){
 		   	if(!res||(mask>best)){
 		   		res = it;
 		   		best = mask;
@@ -90,6 +96,11 @@ struct sr_rt* sr_LPM(struct sr_instance* sr,uint32_t tip){
 	}
 	return res;
 }
+
+/*192.168.1.2 -->
+
+192.168.3.4 & 255.255.0.0
+192.168.1.2 & 255.255.255.0*/
 
 void sr_init(struct sr_instance* sr)
 {
@@ -423,7 +434,8 @@ void sr_handle_ip_packet(struct sr_instance *sr,
         }
         else
         {
-          forwardIpPacket(sr, ip_hdr, len - ip_hdr->ip_hl*4, interface);
+        	forwardIpPacket(sr, ip_hdr, len - sizeof(sr_ethernet_hdr_t), interface);
+          /*forwardIpPacket(sr, ip_hdr, len - ip_hdr->ip_hl*4, interface);*/
         }
 
 
@@ -442,6 +454,8 @@ void sr_handle_ip_packet(struct sr_instance *sr,
 
 void PacketToMe(struct sr_instance* sr, sr_ip_hdr_t* packet, unsigned int length, struct sr_if  *interface)
         {
+			packet->ip_ttl--;
+
           printf("---------------IpHandleReceivedPacketToUs-------------------");
           if (packet->ip_p == ip_protocol_icmp)
           {
@@ -455,7 +469,8 @@ void PacketToMe(struct sr_instance* sr, sr_ip_hdr_t* packet, unsigned int length
           }
 }
 
-      void forwardIpPacket(struct sr_instance* sr, sr_ip_hdr_t* packet,
+
+void forwardIpPacket(struct sr_instance* sr, sr_ip_hdr_t* packet,
         unsigned int length, struct sr_if* receivedInterface)
       {
         struct sr_rt* next_hop = sr_LPM(sr, packet->ip_dst);
