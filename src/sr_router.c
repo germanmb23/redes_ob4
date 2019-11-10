@@ -29,9 +29,6 @@ static void checkARPandSendPacket(struct sr_instance *sr, sr_ethernet_hdr_t* pac
    unsigned int length, struct sr_rt const * const route)
 {
 
-  printf("\n---------------linkArpAndSendPacket-------------------\n");
-
-
   uint32_t nextHopIpAddress = ntohl(route->gw.s_addr);
   struct sr_arpentry *arpEntry = sr_arpcache_lookup(&sr->cache, nextHopIpAddress);
 
@@ -40,13 +37,6 @@ static void checkARPandSendPacket(struct sr_instance *sr, sr_ethernet_hdr_t* pac
 
    if (arpEntry != NULL)
    {
-       printf("\n---------------arpEntry != NULL-------------------\n");
-       int i = 0;
-       while(i<=5){
-    	   printf("%d \n", (unsigned int)arpEntry->mac[i]);
-    	   i++;
-       }
-
       memcpy(packet->ether_dhost, arpEntry->mac, ETHER_ADDR_LEN);
       print_hdrs(packet,sizeof(sr_ethernet_hdr_t) + sizeof(sr_ip_hdr_t));
       sr_send_packet(sr, (uint8_t*) packet, length, route->interface);
@@ -55,8 +45,6 @@ static void checkARPandSendPacket(struct sr_instance *sr, sr_ethernet_hdr_t* pac
    }
    else
    {
-            printf("\n---------------arpEntry = NULL-------------------\n");
-
       /* We need to ARP our next hop. Setup the request and send the ARP packet. */
       struct sr_arpreq* arpRequest = sr_arpcache_queuereq(&sr->cache, nextHopIpAddress,
          (uint8_t*) packet, length, route->interface);
@@ -126,8 +114,6 @@ void sr_init(struct sr_instance* sr)
 void sr_arp_request_send(struct sr_instance *sr, uint32_t ip) {
 
       /* struct sr_arpreq *req = sr_arpcache_insert(&sr->cache, 0x00, ip);*/
-        printf("\n----------sr_arp_request_send------------\n");
-        print_addr_ip_int(ip);
         struct sr_rt *ruta = sr_LPM(sr, htonl(ip));
         uint8_t* arpPacket = (uint8_t *) malloc(sizeof(sr_ethernet_hdr_t) + sizeof(sr_arp_hdr_t));
         sr_ethernet_hdr_t* ethernetHdr = (sr_ethernet_hdr_t*) arpPacket;
@@ -141,9 +127,6 @@ void sr_arp_request_send(struct sr_instance *sr, uint32_t ip) {
         broadcast[3] = 0xff;
         broadcast[4] = 0xff;
         broadcast[5] = 0xff;
-
-        print_addr_eth(broadcast);
-        print_addr_eth(sr_get_interface(sr, ruta->interface)->addr);
 
         /* Ethernet Header */
         memcpy(ethernetHdr->ether_dhost, broadcast, ETHER_ADDR_LEN*sizeof(uint8_t));
@@ -174,7 +157,6 @@ void sr_send_icmp_error_packet(uint8_t type,
                               uint8_t *ipPacket)
 {
 
-    printf("\n   %i    \n", type);
     if ((type==3)|| (type==11) ){
       send_TTL_Unreachable_ICMP(type, code, sr, ipDst, ipPacket);
       return;
@@ -195,13 +177,11 @@ void send_echo_reply(uint8_t type,
 
     unsigned int replyPacketLength = sizeof(sr_ethernet_hdr_t) + ntohs(siphdr->ip_len);
     uint8_t *packetReply = (uint8_t *)malloc(replyPacketLength);
-    printf("\n\n %i \n\n", htons(siphdr->ip_len));
     uint16_t ipLen = ntohs(siphdr->ip_len);
 
     struct sr_rt *tb = sr_LPM(sr,ipDst);
 
     if(tb==NULL){
-      printf("\n-------------tb = NULL-------------\n");
       free(packetReply);
       return;
     }
@@ -248,7 +228,6 @@ void send_TTL_Unreachable_ICMP(uint8_t type,
         struct sr_rt *tb = sr_LPM(sr,siphdr->ip_src);
 
         if(tb==NULL){
-          printf("\n-------------tb = NULL-------------\n");
           free(packetReply);
           return;
         }
@@ -290,8 +269,6 @@ void sr_handle_arp_packet(struct sr_instance *sr,
         uint8_t *destAddr,
         char *interface /* lent */,
         sr_ethernet_hdr_t *eHdr) {
-
-     printf("\n---------sr_handle_arp_packet--------------\n");
 
     unsigned int length = len;
     sr_arp_hdr_t * arp_hdr = (sr_arp_hdr_t*) (packet + sizeof(sr_ethernet_hdr_t));
@@ -371,15 +348,7 @@ void sr_handle_arp_packet(struct sr_instance *sr,
       }
    }
 
-   	   	/* Get ARP header and addresses */
-   		/*sr_arp_hdr_t *arp_packet = (sr_arp_hdr_t *) (packet + sizeof(sr_ethernet_hdr_t));
-   		uint32_t ar_sip = arp_packet->ar_sip; // sender IP addr
-   		uint32_t ar_tip = arp_packet->ar_tip; // target IP addr*/
-
-   		/* add or update sender to ARP cache*/
-   		/*uint8_t *src_mac = eHdr->ether_shost;
-   		unsigned char *src_mac_char = (unsigned char *)src_mac;
-   		struct sr_arpreq *arpreq = sr_arpcache_insert(&(sr->cache), src_mac_char, ar_sip);*/
+	/* Get ARP header and addresses */
 
   /* check if the ARP packet is for one of my interfaces. */
 
@@ -388,6 +357,17 @@ void sr_handle_arp_packet(struct sr_instance *sr,
   /* if it is a request, construct and send an ARP reply*/
 
   /* else if it is a reply, add to ARP cache if necessary and send packets waiting for that reply*/
+}
+
+void print_addr_ip_2(uint32_t ip) {
+      uint32_t curOctet = ip >> 24;
+      fprintf(stderr, "%d.", curOctet);
+      curOctet = (ip << 8) >> 24;
+      fprintf(stderr, "%d.", curOctet);
+      curOctet = (ip << 16) >> 24;
+      fprintf(stderr, "%d.", curOctet);
+      curOctet = (ip << 24) >> 24;
+      fprintf(stderr, "%d\n", curOctet);
 }
 
 void sr_handle_ip_packet(struct sr_instance *sr,
@@ -400,41 +380,44 @@ void sr_handle_ip_packet(struct sr_instance *sr,
 
       sr_ip_hdr_t *ip_hdr = (sr_ip_hdr_t *) (packet + sizeof(sr_ethernet_hdr_t));
 
-      /*printf("\n---------------sr_handle_ip_packet-------------------\n");
+        printf("\nReceive IP packet, length(%i)\n", len);
+        printf("    Header Length: %i\n", ip_hdr->ip_hl);
+        printf("    Type of Service: %i\n", ip_hdr->ip_tos);
+        printf("    Length: %i\n", ip_hdr->ip_len);
+        printf("    ID: %i\n", ip_hdr->ip_id);
+        printf("    Offset: %i\n", ip_hdr->ip_off);
+        printf("    TTL: %i\n", ip_hdr->ip_ttl);
+        printf("    Protocol: %i\n", ip_hdr->ip_p);
+        printf("    Checksum: %i\n", ip_hdr->ip_sum);
+        printf("    Source: ");
+        uint32_t ip_src = htonl(ip_hdr->ip_src);
+        printf("%i.", ip_src >> 24);
+        printf("%i.", (ip_src << 8) >> 24);
+        printf("%i.", (ip_src << 16) >> 24);
+        printf("%i\n", (ip_src << 24) >> 24);
+        printf("    Destination: ");
+        uint32_t ip_dst = htonl(ip_hdr->ip_dst);
+        printf("%i.", ip_dst >> 24);
+        printf("%i.", (ip_dst << 8) >> 24);
+        printf("%i.", (ip_dst << 16) >> 24);
+        printf("%i\n", (ip_dst << 24) >> 24);
 
 
-      if ((ip_hdr->ip_hl < 5) || (len - sizeof(sr_ethernet_hdr_t) < sizeof(sr_ip_hdr_t))){
-       printf("\n---------Paquete IP invalido----------\n");
-        return;
-      }else{
-        printf("\n---------Paquete IP Valido----------\n");
-      }*/
+        ip_hdr->ip_ttl--;
 
-		ip_hdr->ip_ttl--;
+        uint16_t headerChecksum = ip_hdr->ip_sum;
+        ip_hdr->ip_sum = 0;
+        uint16_t calculatedChecksum = ip_cksum(ip_hdr, ip_hdr->ip_hl*4);
+        ip_hdr->ip_sum = calculatedChecksum;
 
-      uint16_t headerChecksum = ip_hdr->ip_sum;
-      ip_hdr->ip_sum = 0;
-      uint16_t calculatedChecksum = ip_cksum(ip_hdr, ip_hdr->ip_hl*4);
-      ip_hdr->ip_sum = calculatedChecksum;
-      printf("\n IP_HL: ---------%i----------\n", ip_hdr->ip_hl*4);
+        if (is_packet_valid(packet, len)) {
+          printf("******* PAQUETE VALIDO *******");
+        }
 
-      if (is_packet_valid(packet, len)) {
-    	  printf("******* PAQUETE VALIDO *******");
-      }
-
-      /*if (headerChecksum != calculatedChecksum)
-      {
-         printf("\n---------Checksum Erroneo----------\n");
-         return;
-      }
-      else
-        printf("\n---------Checksum Correcto----------\n");*/
-
-      bool toMe = false;
-      if(sr_get_interface_given_ip(sr, ip_hdr->ip_dst) != NULL){
-        toMe = true;
-      }
-      printf("\n---------------toMe %i-------------------\n", toMe);
+        bool toMe = false;
+        if(sr_get_interface_given_ip(sr, ip_hdr->ip_dst) != NULL){
+          toMe = true;
+        }
 
         if (toMe)
         {
@@ -442,8 +425,7 @@ void sr_handle_ip_packet(struct sr_instance *sr,
         }
         else
         {
-        	forwardIpPacket(sr, ip_hdr, len - sizeof(sr_ethernet_hdr_t), interface);
-          /*forwardIpPacket(sr, ip_hdr, len - ip_hdr->ip_hl*4, interface);*/
+          forwardIpPacket(sr, ip_hdr, len - sizeof(sr_ethernet_hdr_t), interface);
         }
 
 
@@ -482,7 +464,7 @@ void forwardIpPacket(struct sr_instance* sr, sr_ip_hdr_t* packet,
       {
         struct sr_rt* next_hop = sr_LPM(sr, packet->ip_dst);
         if (next_hop != NULL)
-          printf("\n--------Existe Ruta a destino-------\n");
+          printf("\n--------Exists Destination Route-------\n");
         /* Decremento TTL y forward */
         uint8_t packetTtl = packet->ip_ttl; /*- 1*/
         if (packetTtl == 0)
